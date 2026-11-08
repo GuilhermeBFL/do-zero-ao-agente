@@ -261,7 +261,7 @@ html[data-tema="noite"] .coluna h2::before { box-shadow: 0 0 0 2px #000; }
 .nota-m strong { color: var(--texto); }
 @media (max-width: 1320px) {
   .nota-m { display: none; float: none; width: auto; margin: 8px 0 10px; font-size: 16.5px; background: var(--papel-3); padding: 10px 14px; }
-  .termo-t:checked ~ .nota-m { display: block; }
+  .termo-t:checked + .termo + .nota-m { display: block; }
   .coluna { margin-left: auto; margin-right: auto; }
 }
 
@@ -275,12 +275,21 @@ html[data-tema="noite"] .coluna h2::before { box-shadow: 0 0 0 2px #000; }
 pre.codigo { margin: 10px 0 14px; padding: 15px 17px; overflow: auto; background: #0d0a26; color: #f0f1ff; font-family: var(--mono); font-size: 15.5px; line-height: 1.6; position: relative; white-space: pre-wrap; overflow-wrap: anywhere; }
 pre.codigo code { background: none; padding: 0; font-size: 1em; }
 pre.codigo .ling { display: block; font-family: var(--titulo); font-size: 18px; color: var(--amarelo); line-height: 1; margin-bottom: 8px; }
+pre.codigo .arq { margin-left: 10px; font-family: var(--mono); font-size: 14px; color: #c9d3ff; overflow-wrap: anywhere; }
+pre.codigo .ling:has(.arq) { line-height: 1.3; }
+.bloco-codigo pre.codigo { margin: 14px 0 20px; }
+table.tab code { white-space: pre-wrap; }
 .copiar { float: right; min-height: 44px; min-width: 76px; margin: -6px -8px 6px 10px; padding: 0 12px; background: var(--amarelo); color: var(--tinta); border: 0; cursor: pointer; font-family: var(--titulo); font-size: 20px; }
 .copiar:hover { background: var(--amarelo-2); }
 figure.saida { margin: 10px 0 18px; border: 2px solid #0d0a26; background: #000; }
 figure.saida figcaption { padding: 4px 12px; background: #2a2470; color: #dfe3ff; font-family: var(--titulo); font-size: 18px; line-height: 1.2; }
 figure.saida pre { margin: 0; padding: 12px 14px; color: #c8ffd4; font-family: var(--mono); font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 figure.saida code { background: none; padding: 0; font-size: 1em; }
+/* Imagem (captura de tela): nunca passa da coluna; no PC vai até 1,5 vez a largura do dado (o arquivo tem o dobro). */
+figure.figura { margin: 22px 0 26px; }
+figure.figura img { display: block; width: min(100%, calc(var(--larg, 390px) * 1.5)); max-width: 100%; height: auto; border: 2px solid var(--texto); background: #fff; box-shadow: 4px 4px 0 color-mix(in srgb, var(--texto) 18%, transparent); }
+figure.figura figcaption { margin-top: 9px; font-size: 16px; line-height: 1.5; color: var(--texto-2); }
+html[data-tema="noite"] figure.figura img { border-color: var(--linha); box-shadow: none; filter: brightness(.9); }
 .resposta { margin-top: 12px; padding: 13px 15px; background: var(--papel-3); }
 .resposta[hidden] { display: none; }
 .vivo { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -288,6 +297,10 @@ figure.saida code { background: none; padding: 0; font-size: 1em; }
 .vivo-bts { display: flex; flex-wrap: wrap; gap: 8px; }
 .vivo-instr { margin: 12px 0 6px !important; font-weight: 700; }
 .vivo iframe { width: 100%; min-height: 200px; border: 2px solid var(--linha); background: #fff; }
+.vivo.terminal { grid-template-columns: minmax(0, 1fr); }
+.vivo.terminal .vivo-cod { min-height: 0; }
+figure.vivo-saida { margin: 0; }
+.vivo-bts .botao[aria-pressed="true"] { border-color: var(--texto); background: var(--texto); color: var(--papel); }
 table.tab { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 17px; line-height: 1.42; }
 .tab-rola { overflow-x: auto; }
 table.tab th { text-align: left; font-family: var(--titulo); font-weight: 400; font-size: 22px; border-bottom: 3px solid var(--texto); padding: 8px 12px 8px 0; }
@@ -347,6 +360,9 @@ html[data-tema="noite"] .lab { border-color: var(--linha); }
 .lab .botao { border-color: #f0f1ff; color: #f0f1ff; }
 .lab .botao:hover { background: #f0f1ff; color: #0d0a26; }
 .espera { margin: 8px 0 0; font-size: 16.5px; color: #dfe3ff; }
+.embed { margin: 0 0 16px; }
+.embed-quadro iframe { display: block; width: 100%; height: 500px; border: 2px solid #f0f1ff; background: #fff; }
+.embed-nota { margin: 6px 0 10px; font-size: 15.5px; color: #dfe3ff; }
 .espera strong { color: var(--amarelo-2); }
 .espera.errado { margin-top: 4px; }
 .quebrado { border-left-width: 10px; border-left-color: var(--errado); }
@@ -506,3 +522,7 @@ html.rota-mapa.vert body { padding-bottom: calc(var(--barra-celular) + env(safe-
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 @media print { .topo, .rail, .palco-video, .barra-celular, .rodape { display: none; } .folha-texto { background: #fff; color: #000; } }
+
+/* Caminhos e comandos longos quebram a linha em vez de alargar a tela no celular (achado do teste de innerWidth, 02/11/2026). */
+.folha-texto p, .folha-texto li, .folha-texto td, .folha-texto code { overflow-wrap: anywhere; }
+.folha-texto pre { white-space: pre-wrap; overflow-wrap: anywhere; }

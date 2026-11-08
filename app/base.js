@@ -37,21 +37,40 @@ export const PRATICA_NOME = { lab: 'Laboratório', quebrado: 'Laboratório quebr
 export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let idNota = 0;
 export const zerarNotas = () => { idNota = 0; };
-// {{chave}} ou {{chave|texto}} vira termo com nota na margem (PC) ou ao toque (celular); `x` é código; **x** é destaque.
+// Como o termo aparece no meio da frase quando a aula escreve só {{chave}}. O título do verbete ("Localhost",
+// "Mock (mockup)") é para a nota e para o glossário; no texto, o termo sai sem o parêntese final e sem a maiúscula de
+// começo de título ("localhost", "mock"). Ficam como estão: siglas e nomes com maiúscula por dentro (API, GitHub,
+// .gitignore, /clear), nomes de várias palavras com maiúscula (Claude Code, Explorador de Arquivos) e os nomes próprios
+// abaixo, que as aulas escrevem com maiúscula. O motor/testar-aulas.cjs confere cada termo contra o jeito que as aulas
+// escrevem a palavra; verbete novo que seja nome próprio entra nesta lista.
+const NOMES_PROPRIOS = new Set(['git', 'python', 'markdown', 'codex', 'gitleaks', 'console', 'console-navegador', 'telegram', 'bash', 'cowork', 'channels', 'dispatch', 'read', 'agent-sdk', 'registro-mcp']);
+export function termoNoTexto(k) {
+  const g = GLOSSARIO[k];
+  if (!g) return k;
+  const t = g[0].replace(/\s*\([^)]*\)$/, '');
+  const [p, ...resto] = t.split(' ');
+  if (NOMES_PROPRIOS.has(k) || !/^\p{Lu}[\p{Ll}-]*$/u.test(p) || resto.some(w => /^\p{Lu}\p{Ll}/u.test(w))) return t;
+  return p[0].toLowerCase() + t.slice(1);
+}
+// `x` é código; **x** é destaque (sobre texto já escapado).
+const marcas = s => s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+// {{chave}} ou {{chave|texto}} vira termo com nota na margem (PC) ou ao toque (celular). O termo aparece como o texto da
+// aula escreve: {{chave|texto}} mostra o texto; {{chave}}, o termoNoTexto(chave). A nota mostra o título do verbete.
+// Os termos saem do texto antes das marcas de código e destaque, para a nota não ser lida como marcação da aula.
 export function inline(txt) {
-  let s = esc(txt);
-  s = s.replace(/\{\{([\w-]+)(?:\|([^}]+))?\}\}/g, (_, k, rot) => {
+  const termos = [];
+  let s = esc(txt).replace(/\{\{([\w-]+)(?:\|([^}]+))?\}\}/g, (_, k, rot) => {
     const g = GLOSSARIO[k];
-    if (!g) return rot || k;
+    const mostra = rot ? marcas(rot) : esc(termoNoTexto(k));
+    if (!g) return mostra;
     const i = `n${++idNota}`;
-    return `<input class="termo-t" type="checkbox" id="${i}" aria-label="Ver o que é ${esc(g[0])}"><label class="termo" for="${i}">${rot || g[0]}</label><span class="nota-m"><strong>${esc(g[0])}.</strong> ${esc(g[1])}</span>`;
+    termos.push(`<input class="termo-t" type="checkbox" id="${i}" aria-label="Ver o que é ${esc(g[0])}"><label class="termo" for="${i}" data-k="${k}">${mostra}</label><span class="nota-m"><strong>${esc(g[0])}.</strong> ${esc(g[1])}</span>`);
+    return `\u0000${termos.length - 1}\u0000`;
   });
-  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  return s;
+  return marcas(s).replace(/\u0000(\d+)\u0000/g, (_, n) => termos[n]);
 }
 // Texto puro (sem marcação), para a busca e para rótulos.
-export const textoPuro = txt => String(txt ?? '').replace(/\{\{([\w-]+)(?:\|([^}]+))?\}\}/g, (_, k, rot) => rot || GLOSSARIO[k]?.[0] || k).replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1');
+export const textoPuro = txt => String(txt ?? '').replace(/\{\{([\w-]+)(?:\|([^}]+))?\}\}/g, (_, k, rot) => rot || termoNoTexto(k)).replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1');
 // Embaralha com semente: o mesmo enunciado na mesma aula dá sempre a mesma ordem, e aulas diferentes dão ordens diferentes.
 export function embaralhar(lista, ...semente) {
   let h = 7;

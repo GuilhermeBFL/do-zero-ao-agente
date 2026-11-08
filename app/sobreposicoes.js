@@ -86,6 +86,7 @@ async function montarIndice() {
       if (['p', 'h2', 'h3', 'quebra'].includes(tipo)) add(b, d);
       else if (tipo === 'lista') d.forEach(x => add(b, x));
       else if (tipo === 'erros') d.forEach(([x, y]) => add(b, `${x} ${y}`));
+      else if (tipo === 'imagem' && d.legenda) add(b, d.legenda);
       else if (tipo === 'fundo') varre(d.blocos, `${b}.`);
     });
     varre(aula.blocos, '');
@@ -129,6 +130,9 @@ export function abrirBusca() {
 const CODIGO_CHAVE = 'curso.tutor.codigo';
 const lerCodigo = () => { try { return localStorage.getItem(CODIGO_CHAVE) || ''; } catch { return ''; } };
 const gravarCodigo = c => { try { if (c) localStorage.setItem(CODIGO_CHAVE, c); else localStorage.removeItem(CODIGO_CHAVE); } catch { /* sem armazenamento */ } };
+// Id aleatório deste aparelho, para o limite por aparelho do tutor real (api/tutor.js). Não identifica a pessoa.
+const APARELHO_CHAVE = 'curso.tutor.aparelho';
+const lerAparelho = () => { try { let a = localStorage.getItem(APARELHO_CHAVE); if (!a) { a = Math.random().toString(36).slice(2, 12) + Date.now().toString(36); localStorage.setItem(APARELHO_CHAVE, a); } return a; } catch { return 'sem-armazenamento'; } };
 const SUGESTOES_GERAIS = [
   ['Por onde eu começo?', 'Pela fase 0 do mapa, mesmo que pareça fácil: a aula 0.0 mostra como usar o curso e o Claude Code, e todo laboratório até o módulo 7 se apoia nela. Quer que eu explique o que tem na fase 0?'],
   ['Quanto tempo leva o curso?', 'Com 3 a 7 horas por semana e aulas de 20 a 45 minutos, o caminho principal leva alguns meses. As fases bônus são opcionais e podem ficar para depois.']
@@ -174,8 +178,9 @@ export async function alternarTutor() {
     if (codigo) {
       const espera = addMsg('Pensando…', 'bot espera');
       try {
-        const r = await fetch('api/tutor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo, aula: id, pergunta: texto, historico: historico.slice(-6) }) });
-        if (r.ok) resposta = (await r.json()).resposta || null;
+        const r = await fetch('api/tutor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo, aula: id, pergunta: texto, historico: historico.slice(-6), aparelho: lerAparelho() }) });
+        // A função devolve 200 com {resposta} ou, numa recusa (convite inválido, limite), 200 com {resposta, erro}: o aviso vem em resposta.
+        if (r.ok) { const j = await r.json(); resposta = j.resposta || j.erro || null; }
       } catch { /* sem rede ou sem função: cai na demonstração */ }
       espera.remove();
       if (!resposta) el.querySelector('.tutor-modo').textContent = 'Tutor de demonstração: respostas prontas';

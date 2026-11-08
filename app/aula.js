@@ -5,8 +5,18 @@ import { registrar, quandoTexto, notaDosPontos, NOTAS, pontosHTML } from './revi
 import { abrirProva } from './sobreposicoes.js';
 
 const LINGUAGEM = { python: 'Python', html: 'HTML', javascript: 'JavaScript', js: 'JavaScript', powershell: 'PowerShell', bash: 'Terminal', json: 'JSON', texto: 'Texto', css: 'CSS', sql: 'SQL', markdown: 'Markdown' };
-const codigoHTML = (c, copia, ling) => `<pre class="codigo">${ling ? `<span class="ling">${esc(LINGUAGEM[ling] || ling)}</span>` : ''}${copia ? '<button class="copiar" type="button">Copiar</button>' : ''}<code>${esc(c)}</code></pre>`;
+// Código mostrado: rótulo da linguagem (e do arquivo, se houver) em cima; botão Copiar só quando é para colar.
+const codigoHTML = (c, copia, ling, arq) => `<pre class="codigo">${copia ? '<button class="copiar" type="button">Copiar</button>' : ''}${ling || arq ? `<span class="ling">${ling ? esc(LINGUAGEM[ling] || ling) : ''}${arq ? `<span class="arq">${esc(arq)}</span>` : ''}</span>` : ''}<code>${esc(c)}</code></pre>`;
 const saidaHTML = (s, rot = 'Saída do terminal') => `<figure class="saida"><figcaption>${esc(rot)}</figcaption><pre><code>${esc(s)}</code></pre></figure>`;
+// Página incorporada no laboratório (Python Tutor): o iframe só entra no PC (>= 900 px), por ligarEmbeds; no celular fica o link.
+const hostDe = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+function embedHTML(url, link) {
+  const tutor = /(^|\.)pythontutor\.com$/.test(hostDe(url));
+  // Link para abrir em nova aba: o do laboratório, se for do mesmo site; senão a página completa do Python Tutor; senão o próprio endereço.
+  const href = link && hostDe(link[1]) === hostDe(url) ? link[1]
+    : tutor && url.includes('/iframe-embed.html') ? url.replace('/iframe-embed.html', '/visualize.html') + (/[#&]mode=/.test(url) || !url.includes('#') ? '' : '&mode=display') : url;
+  return `<div class="embed" data-embed="${esc(url)}" data-titulo="${tutor ? 'Python Tutor: o programa rodando passo a passo' : 'Página incorporada'}"><div class="embed-quadro" hidden></div><a class="botao" href="${esc(href)}" target="_blank" rel="noopener">${tutor ? 'Abrir no Python Tutor em nova aba' : 'Abrir em nova aba'}</a></div>`;
+}
 const NATUREZA = { oficial: 'oficial', comunidade: 'comunidade', imprensa: 'imprensa', 'opinião': 'opinião', opiniao: 'opinião', 'acadêmico': 'acadêmico', academico: 'acadêmico' };
 
 // Passo de laboratório: objeto { faz, cola, saida, espera } (formato novo) ou [texto, código, espera] (antigo).
@@ -24,7 +34,7 @@ function linhasParsons(d) {
   return ls;
 }
 
-function blocoHTML(b, i, ctx) {
+export function blocoHTML(b, i, ctx) {
   const [tipo, d] = b;
   const db = `data-b="${i}"`;
   switch (tipo) {
@@ -36,9 +46,25 @@ function blocoHTML(b, i, ctx) {
     case 'lista': return `<ul class="regras" ${db}>${d.map(x => `<li>${inline(x)}</li>`).join('')}</ul>`;
     case 'fluxo': return `<ol class="fluxo" ${db}>${d.map(([q, t]) => `<li><strong>${esc(q)}</strong><span>${inline(t)}</span></li>`).join('')}</ol>`;
     case 'saida': return `<div ${db}>${saidaHTML(d)}</div>`;
+    // Imagem (captura de tela): largura e altura em px de CSS (o arquivo tem o dobro, para telas nítidas). Ocupa a
+    // coluna até 1,5 vez a largura do dado (no PC, para o texto da captura ficar legível); carrega só perto da vista
+    // (lazy). O texto alternativo é obrigatório; a legenda, opcional.
+    case 'imagem': return `<figure class="figura" ${db}${+d.largura > 0 ? ` style="--larg:${Math.round(+d.largura)}px"` : ''}><img src="${esc(d.src)}" alt="${esc(d.alt)}" width="${Math.round(+d.largura) || ''}" height="${Math.round(+d.altura) || ''}" loading="lazy" decoding="async">${d.legenda ? `<figcaption>${inline(d.legenda)}</figcaption>` : ''}</figure>`;
+    case 'codigo': return `<div class="bloco-codigo" ${db}>${codigoHTML(d.texto ?? '', d.cola === true, d.linguagem, d.rotulo)}</div>`;
     case 'tabela': return `<div class="tab-rola" ${db} tabindex="0" role="region" aria-label="Tabela"><table class="tab"><thead><tr>${d.colunas.map(c => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${d.linhas.map(l => `<tr>${l.map(c => `<td>${inline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     case 'fundo': return `<details class="fundo" ${db}><summary>${esc(d.titulo || 'Para ir mais fundo')}</summary><div class="fundo-corpo">${d.blocos.map((x, j) => blocoHTML(x, `${i}.${j}`, ctx)).join('')}</div></details>`;
-    case 'prever': return `<section class="caixa prever" ${db}><h3>Preveja antes de ver</h3><p>${inline(d.pergunta)}</p>${codigoHTML(d.codigo, false, d.linguagem)}<button class="botao mostrar" type="button">Mostrar a resposta</button><div class="resposta" hidden>${inline(d.resposta)}${d.vivo ? `<p class="vivo-instr">Agora toque para mudar o código e veja o resultado:</p><div class="vivo-bts">${d.vivo.map(([r, c]) => `<button class="botao leve" type="button" data-cod="${esc(c)}">${esc(r)}</button>`).join('')}</div><div class="vivo" data-orig="${esc(d.codigo)}"><pre class="codigo vivo-cod"><code>${esc(d.codigo)}</code></pre><iframe title="Resultado do código" sandbox></iframe></div>` : ''}</div></section>`;
+    case 'prever': {
+      // vivo: [rótulo, código] desenha o HTML num iframe; [rótulo, código, saída] (ou linguagem que não é HTML) mostra a saída de terminal.
+      const vivo = d.vivo || [];
+      const comSaida = vivo.some(x => x.length > 2);
+      const terminal = comSaida || (!!d.linguagem && d.linguagem !== 'html');
+      const origSaida = d.saida ?? vivo.find(x => x.length > 2 && x[1] === d.codigo)?.[2];
+      const instr = !terminal ? 'Agora toque para mudar o código e veja o resultado:' : comSaida ? 'Agora toque para mudar o código e veja o que aparece no terminal:' : 'Agora toque nos botões e veja o que muda:';
+      const palco = terminal
+        ? `<div class="vivo terminal" data-orig="${esc(d.codigo)}"${origSaida != null ? ` data-orig-saida="${esc(origSaida)}"` : ''}><pre class="codigo vivo-cod"><code>${esc(d.codigo)}</code></pre><figure class="saida vivo-saida" aria-live="polite" hidden><figcaption>Saída do terminal</figcaption><pre><code></code></pre></figure></div>`
+        : `<div class="vivo" data-orig="${esc(d.codigo)}"><pre class="codigo vivo-cod"><code>${esc(d.codigo)}</code></pre><iframe title="Resultado do código" sandbox></iframe></div>`;
+      return `<section class="caixa prever" ${db}><h3>Preveja antes de ver</h3><p>${inline(d.pergunta)}</p>${d.codigo != null ? codigoHTML(d.codigo, false, d.linguagem) : ''}<button class="botao mostrar" type="button">Mostrar a resposta</button><div class="resposta" hidden>${inline(d.resposta)}${vivo.length ? `<p class="vivo-instr">${instr}</p><div class="vivo-bts">${vivo.map(([r, c, s]) => `<button class="botao leve" type="button" aria-pressed="false" data-cod="${esc(c)}"${s != null ? ` data-saida="${esc(s)}"` : ''}>${esc(r)}</button>`).join('')}</div>${palco}` : ''}</div></section>`;
+    }
     case 'pergunta': {
       const chave = ctx ? `${ctx.id}:pergunta:${ctx.conta.pergunta++}` : '';
       return `<section class="caixa pergunta" ${db} data-c="${d.c}" ${chave ? `data-chave="${chave}"` : ''}><h3>${esc(d.titulo || 'Pare e responda')}</h3><p>${inline(d.p)}</p>${embaralhar(d.o.map(([t, e], k) => ({ t, e, k })), d.p, ctx?.id || '').map(o => `<button class="opcao" type="button" data-k="${o.k}" data-e="${esc(o.e)}">${inline(o.t)}</button>`).join('')}<div class="explica" aria-live="polite"></div></section>`;
@@ -54,9 +80,9 @@ function blocoHTML(b, i, ctx) {
       const n = Array.isArray(d.r) ? d.r.length : 1;
       return `<section class="caixa lembrar" ${db} data-chave="${chave}"><h3>Tente lembrar</h3><p>${inline(d.p)}</p><p class="instr">Pense na resposta, sem olhar para cima. Você não precisa escrever nada.</p><button class="botao mostrar" type="button">Ver a resposta</button><div class="resposta" hidden><p class="dica-pontos">A resposta tem ${n} ${n === 1 ? 'ponto' : 'pontos'}. Toque em "Lembrei este" em cada um que você lembrou, depois em Registrar.</p>${pontosHTML(d.r)}<button class="botao cheio lembrar-pronto" type="button">Registrar</button><p class="lembrou-res" aria-live="polite"></p></div></section>`;
     }
-    case 'lab': return `<section class="caixa lab" id="s${i}" ${db}><h3>Laboratório: ${esc(d.titulo)}</h3><p class="onde">${esc(d.lugar)}${d.tempo ? `, ${esc(d.tempo)}` : ''}</p>${d.antes ? `<p>${inline(d.antes)}</p>` : ''}<div class="lab-bts">${d.link ? `<a class="botao" href="${esc(d.link[1])}" target="_blank" rel="noopener">${esc(d.link[0])}</a>` : ''}${d.arquivos ? `<a class="botao" href="${esc(d.arquivos)}" download>Baixar os arquivos</a>` : ''}</div><ol>${d.passos.map(passoDe).map((p, k) => `<li><label class="passo"><input type="checkbox" data-lab="${i}-${k}"><span>${inline(p.faz)}</span></label>${p.cola ? codigoHTML(p.cola, true) : ''}${p.saida ? saidaHTML(p.saida, 'O que aparece') : ''}${p.espera ? `<p class="espera"><strong>O que deve acontecer:</strong> ${inline(p.espera)}</p>` : ''}</li>`).join('')}</ol>${d.errado ? `<p class="espera errado"><strong>Se der errado:</strong> ${inline(d.errado)}</p>` : ''}</section>`;
+    case 'lab': return `<section class="caixa lab" id="s${i}" ${db}><h3>Laboratório: ${esc(d.titulo)}</h3><p class="onde">${esc(d.lugar)}${d.tempo ? `, ${esc(d.tempo)}` : ''}</p>${d.antes ? `<p>${inline(d.antes)}</p>` : ''}<div class="lab-bts">${d.link && !(d.embed && hostDe(d.link[1]) === hostDe(d.embed)) ? `<a class="botao" href="${esc(d.link[1])}" target="_blank" rel="noopener">${esc(d.link[0])}</a>` : ''}${d.arquivos ? `<a class="botao" href="${esc(d.arquivos)}" download>Baixar os arquivos</a>` : ''}</div>${d.embed ? embedHTML(d.embed, d.link) : ''}<ol>${d.passos.map(passoDe).map((p, k) => `<li><label class="passo"><input type="checkbox" data-lab="${i}-${k}"><span>${inline(p.faz)}</span></label>${p.cola ? codigoHTML(p.cola, true) : ''}${p.saida ? saidaHTML(p.saida, 'O que aparece') : ''}${p.embed ? embedHTML(p.embed) : ''}${p.espera ? `<p class="espera"><strong>O que deve acontecer:</strong> ${inline(p.espera)}</p>` : ''}</li>`).join('')}</ol>${d.errado ? `<p class="espera errado"><strong>Se der errado:</strong> ${inline(d.errado)}</p>` : ''}</section>`;
     case 'quebrado': return `<section class="caixa quebrado" ${db}><h3>${esc(d.titulo || 'Laboratório quebrado')}</h3><p>${inline(d.texto)}</p>${d.cola ? `<p class="instr">Para reproduzir, cole:</p>${codigoHTML(d.cola, true)}` : ''}${d.saida || d.codigo ? saidaHTML(d.saida || d.codigo, 'O que apareceu') : ''}<p class="dica"><strong>Dica:</strong> ${inline(d.dica)}</p><button class="botao mostrar" type="button">Ver a causa</button><div class="resposta" hidden>${inline(d.resposta)}</div></section>`;
-    case 'simulador': return `<section class="caixa simulador" ${db} data-sim="${esc(d.id)}"><h3>${esc(d.titulo || 'Simulador')}</h3><div class="sim-palco"><p>Carregando o simulador…</p></div></section>`;
+    case 'simulador': return `<section class="caixa simulador" ${db} data-sim="${esc(d.id)}" data-opcoes="${esc(JSON.stringify(d))}"><h3>${esc(d.titulo || 'Simulador')}</h3><div class="sim-palco"><p>Carregando o simulador…</p></div></section>`;
     case 'fontes': return `<section class="fontes" id="s${i}" ${db}><h2>Fontes desta aula</h2><ul>${d.map(([t, u, n, data, pt]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a><small>${[NATUREZA[n] || n, data ? `conferida em ${data}` : '', pt === 'pt' ? 'em português' : 'em inglês'].filter(Boolean).map(esc).join(' · ')}</small></li>`).join('')}</ul></section>`;
     default: return '';
   }
@@ -111,9 +137,49 @@ export function telaAula(id, aula, modulo) {
   </div>${barraCelular('/aula')}`;
 }
 
-function mostraHTML(nv, codigo) {
+// Troca o código do "Preveja" e mostra o resultado: HTML no iframe, ou a saída de terminal (sem saída conhecida, a caixa some).
+function mostraVivo(nv, codigo, saida) {
   nv.querySelector('.vivo-cod code').textContent = codigo;
-  nv.querySelector('iframe').srcdoc = `<!doctype html><meta charset=utf-8><body style="font-family:system-ui;padding:8px">${codigo}`;
+  const fr = nv.querySelector('iframe');
+  if (fr) fr.srcdoc = `<!doctype html><meta charset=utf-8><body style="font-family:system-ui;padding:8px">${codigo}`;
+  const fig = nv.querySelector('.vivo-saida');
+  if (fig) {
+    fig.hidden = saida == null;
+    fig.querySelector('code').textContent = saida ?? '';
+    fig.querySelector('figcaption').textContent = saida === '' ? 'Saída do terminal: nada aparece' : 'Saída do terminal';
+  }
+}
+
+// Simuladores (ESPEC, seção 7): montar(el, opcoes) recebe o objeto do bloco inteiro (id, titulo, casos e o que vier), mais reduz e aula.
+export function ligarSimuladores(raiz, id) {
+  raiz.querySelectorAll('.simulador[data-sim]').forEach(s => {
+    const palco = s.querySelector('.sim-palco');
+    let bloco = {};
+    try { bloco = JSON.parse(s.dataset.opcoes || '{}'); } catch {}
+    import(`../simuladores/${s.dataset.sim}.js`).then(mod => {
+      palco.innerHTML = '';
+      const fim = mod.montar(palco, { ...bloco, reduz: reduzMovimento(), aula: id });
+      if (typeof fim === 'function') aoSair(fim);
+    }).catch(() => { palco.innerHTML = '<p>O simulador não carregou. Confira a internet e abra a aula de novo.</p>'; });
+  });
+}
+
+// Python Tutor e outras páginas incorporadas: iframe só com tela de 900 px ou mais; abaixo dele, o aviso de sem internet.
+export function ligarEmbeds(raiz) {
+  const caixas = [...raiz.querySelectorAll('.embed[data-embed]')];
+  if (!caixas.length) return () => {};
+  const mq = matchMedia('(min-width: 900px)');
+  const poe = () => caixas.forEach(c => {
+    const q = c.querySelector('.embed-quadro');
+    const tem = !!q.querySelector('iframe');
+    if (mq.matches && !tem) {
+      q.innerHTML = `<iframe src="${esc(c.dataset.embed)}" title="${esc(c.dataset.titulo)}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe><p class="embed-nota">Sem internet, use os passos em texto desta aula.</p>`;
+      q.hidden = false;
+    } else if (!mq.matches && tem) { q.innerHTML = ''; q.hidden = true; }
+  });
+  poe();
+  mq.addEventListener('change', poe);
+  return () => mq.removeEventListener('change', poe);
 }
 
 function ligarParsons(p, id) {
@@ -183,10 +249,16 @@ export function ligarAula(id, aula, alvo) {
       res.hidden = !res.hidden;
       mostrar.setAttribute('aria-expanded', String(!res.hidden));
       const nv = caixa.querySelector('.vivo');
-      if (nv && !res.hidden) mostraHTML(nv, nv.dataset.orig);
+      if (nv && !res.hidden) {
+        mostraVivo(nv, nv.dataset.orig, nv.dataset.origSaida);
+        caixa.querySelectorAll('[data-cod]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+      }
     }
     const bCod = e.target.closest('[data-cod]');
-    if (bCod) mostraHTML(bCod.closest('.resposta').querySelector('.vivo'), bCod.dataset.cod);
+    if (bCod) {
+      mostraVivo(bCod.closest('.resposta').querySelector('.vivo'), bCod.dataset.cod, bCod.dataset.saida);
+      bCod.parentElement.querySelectorAll('[data-cod]').forEach(b => b.setAttribute('aria-pressed', String(b === bCod)));
+    }
     const ponto = e.target.closest('.ponto-lembrei');
     if (ponto) ponto.setAttribute('aria-pressed', ponto.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     const pronto = e.target.closest('.lembrar-pronto');
@@ -216,19 +288,13 @@ export function ligarAula(id, aula, alvo) {
     }
   });
   raiz.querySelectorAll('.parsons').forEach(p => ligarParsons(p, id));
+  aoSair(ligarEmbeds(raiz));
   raiz.querySelectorAll('input[data-lab]').forEach(c => {
     const k = `lab${id}:${c.dataset.lab}`;
     c.checked = !!estado.notas[k];
     c.addEventListener('change', () => { estado.notas[k] = c.checked; salvar(); });
   });
-  raiz.querySelectorAll('.simulador[data-sim]').forEach(s => {
-    const palco = s.querySelector('.sim-palco');
-    import(`../simuladores/${s.dataset.sim}.js`).then(mod => {
-      palco.innerHTML = '';
-      const fim = mod.montar(palco, { reduz: reduzMovimento(), aula: id });
-      if (typeof fim === 'function') aoSair(fim);
-    }).catch(() => { palco.innerHTML = '<p>O simulador não carregou. Confira a internet e abra a aula de novo.</p>'; });
-  });
+  ligarSimuladores(raiz, id);
   raiz.querySelector('.marca-feita').addEventListener('click', () => {
     if (estado.feitas[id]) delete estado.feitas[id]; else estado.feitas[id] = Date.now();
     salvar();

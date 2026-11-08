@@ -1,11 +1,14 @@
 // Player adaptativo: 16x9 no PC e deitado, 9x16 no celular em pé; troca de arquivo ao girar sem perder o ponto.
 // O nome de cada arquivo vem de dados/videos.js (montar-site.mjs --versao N): VIDEOS[id].arquivos[formato].video e .capa.
-import { VIDEOS } from '../dados/videos.js';
+import * as DADOS from '../dados/videos.js';
 import { estado, salvar, esc, min, ICONE, aoSair } from './base.js';
 
+const { VIDEOS } = DADOS;
 export { VIDEOS };
-// Caminho relativo (só o nome, ou midia/...) ou endereço completo (https://...): vem do dado, sem montar nome aqui.
-export const urlMidia = nome => (/^(https?:)?\/\//.test(nome) || nome.includes('/') ? nome : `midia/${nome}`);
+// Endereço completo (https://..., vídeo já publicado em um repositório de vídeos) vem do dado e é usado como está;
+// só o nome (ainda não publicado) ganha BASE_MIDIA na frente ('midia/' se o videos.js for antigo). Nome nenhum é montado aqui.
+const BASE_MIDIA = DADOS.BASE_MIDIA || 'midia/';
+export const urlMidia = nome => (/^(https?:)?\/\//.test(nome) || nome.includes('/') ? nome : BASE_MIDIA + nome);
 // Vídeo só se montar-site.mjs achou os arquivos dos dois formatos; senão a aula abre sem player, capítulos e transcrição.
 export function comVideo(id) {
   const v = id ? VIDEOS[id] : null;
@@ -108,9 +111,13 @@ export function ligarPlayer(raiz, v) {
   function fazerPergunta() {
     vid.pause();
     const q = v.pergunta;
+    // Alternativas embaralhadas com semente (texto da pergunta + id do vídeo), como nas aulas: a certa não fica sempre na mesma posição.
+    let h = 0; for (const ch of q.p + v.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const ordem = q.o.map((_, i) => i);
+    for (let i = ordem.length - 1; i > 0; i--) { h = (h * 1664525 + 1013904223) >>> 0; const j = h % (i + 1); [ordem[i], ordem[j]] = [ordem[j], ordem[i]]; }
     const caixa = document.createElement('div');
     caixa.className = 'pausa-pergunta';
-    caixa.innerHTML = `<div><h3>${esc(q.p)}</h3>${q.o.map((o, i) => `<button data-i="${i}">${esc(Array.isArray(o) ? o[0] : o)}</button>`).join('')}<p class="res" aria-live="polite" hidden></p><button class="seguir">Continuar o vídeo</button></div>`;
+    caixa.innerHTML = `<div><h3>${esc(q.p)}</h3>${ordem.map(i => `<button data-i="${i}">${esc(Array.isArray(q.o[i]) ? q.o[i][0] : q.o[i])}</button>`).join('')}<p class="res" aria-live="polite" hidden></p><button class="seguir">Continuar o vídeo</button></div>`;
     pl.append(caixa);
     const res = caixa.querySelector('.res');
     caixa.querySelectorAll('[data-i]').forEach(b => b.addEventListener('click', () => {

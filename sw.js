@@ -1,6 +1,6 @@
 // Gerado por motor/montar-site.mjs. Não edite à mão: o nome do cache muda quando qualquer arquivo do site muda.
 // Rede primeiro, cache como reserva. Aulas, simuladores e capas entram no cache quando pedidos; vídeo .mp4 nunca.
-const CACHE = 'zero-ao-agente-3c04c7403fb6';
+const CACHE = 'zero-ao-agente-3def77d6b836';
 const BASE = [
  "./",
  "index.html",
@@ -27,6 +27,9 @@ const BASE = [
  "fontes/Jersey10-Regular.ttf",
  "fontes/PressStart2P-Regular.ttf",
  "img/apple-touch-icon.png",
+ "img/aulas/2-12-console.png",
+ "img/aulas/2-12-pagina.png",
+ "img/aulas/2-12-rede.png",
  "img/icone-192.png",
  "img/icone-512.png",
  "img/icone-maskable-192.png",
