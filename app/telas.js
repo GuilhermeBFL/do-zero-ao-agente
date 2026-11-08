@@ -90,3 +90,9 @@ export function telaEmBreve(info) {
     <nav class="navega" aria-label="Outras aulas">${ant ? `<a class="botao" href="#/aula/${ant.id}">Anterior: ${esc(ant.t)}</a>` : '<span></span>'}${prox ? `<a class="botao cheio" href="#/aula/${prox.id}">Próxima: ${esc(prox.t)}</a>` : ''}</nav>
   </main>${rodape()}${barraCelular('/')}`;
 }
+
+// Tela de espera quando o módulo da aula demora a carregar (rede lenta): título do destino e aviso, sem player,
+// para a aula nova não aparecer com o vídeo da anterior. Some quando a tela de verdade monta (app.js, ESPERA_MS).
+export function telaCarregando(titulo, aviso) {
+  return `${barraTopo('')}<main class="pagina carregando" id="conteudo" tabindex="-1"><h1>${esc(titulo)}</h1><p class="lead" role="status">${esc(aviso)}…</p></main>${barraCelular('')}`;
+}

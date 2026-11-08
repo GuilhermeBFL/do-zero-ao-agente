@@ -100,7 +100,7 @@ export function telaAula(id, aula, modulo) {
   const titulos = aula.blocos.map((b, i) => (b[0] === 'h2' ? [i, b[1]] : b[0] === 'lab' && !temH2Lab ? [i, 'Laboratório'] : b[0] === 'fontes' ? [i, 'Fontes'] : null)).filter(Boolean);
   const pos = todasAulas.findIndex(a => a.id === id);
   const ant = todasAulas[pos - 1], prox = todasAulas[pos + 1];
-  const player = (rot) => `<div class="player-grade">${htmlPlayer(v)}${blocoCapitulos(v)}</div>${rot || ''}`;
+  const player = (rot) => `<div class="player-grade">${htmlPlayer(v, id)}${blocoCapitulos(v)}</div>${rot || ''}`;
   return `${barraTopo('/aula')}
   <div class="aula-grade">
     <aside class="rail" aria-label="Aulas do módulo ${esc(m.n)}">

@@ -390,6 +390,11 @@ details.transcricao p { margin: 0 0 8px; font-size: 16.5px; }
 .pagina h1 { font-size: clamp(48px, 6vw, 72px); color: var(--texto); }
 .pagina .lead { color: var(--texto-2); max-width: 68ch; margin: 10px 0 24px; }
 .pagina-modulo { max-width: 940px; }
+/* Troca de tela: enquanto o módulo da aula nova carrega, o player da anterior fica parado e apagado (app.js). */
+#app[aria-busy="true"] { cursor: progress; }
+.player[data-saindo] { opacity: .35; pointer-events: none; }
+.carregando .lead { animation: carregando 1.2s ease-in-out infinite alternate; }
+@keyframes carregando { from { opacity: 1; } to { opacity: .45; } }
 .pagina-modulo h2 { font-size: 40px; margin: 30px 0 8px; }
 .grupo-videos h2 { font-size: 38px; margin: 32px 0 4px; }
 .grupo-videos > p { margin: 0 0 16px; color: var(--texto-2); }

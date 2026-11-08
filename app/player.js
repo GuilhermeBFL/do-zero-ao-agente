@@ -19,8 +19,10 @@ export function formatoIdeal() {
   return matchMedia('(max-width: 960px) and (orientation: portrait)').matches ? '9x16' : '16x9';
 }
 const VELOCIDADES = ['0.85', '1', '1.25', '1.5', '1.75'];
-export function htmlPlayer(v) {
-  return `<div class="player" data-formato="16x9" data-tocando="false" tabindex="0" role="group" aria-label="Vídeo: ${esc(v.titulo)}. Espaço toca ou pausa; setas andam 5 segundos.">
+// data-aula e data-video dizem de quem é o player: o testar-link.cjs e o testar-site.cjs conferem que a aula aberta
+// mostra o próprio vídeo (e não o da aula de antes, enquanto o módulo novo carrega).
+export function htmlPlayer(v, aula = '') {
+  return `<div class="player" data-aula="${esc(aula)}" data-video="${esc(v.id)}" data-formato="16x9" data-tocando="false" tabindex="0" role="group" aria-label="Vídeo: ${esc(v.titulo)}. Espaço toca ou pausa; setas andam 5 segundos.">
     <video playsinline preload="metadata" aria-label="${esc(v.titulo)}"></video>
     <button class="play-grande" aria-label="Tocar o vídeo">${ICONE.play}</button>
     <div class="controles">
@@ -58,10 +60,14 @@ export function ligarPlayer(raiz, v) {
   const caps = v.capitulos || [];
   let fmt = null;
   let perguntou = false;
+  let pendente = null;  // troca de arquivo esperando o loadedmetadata: { t, tocava, fn }
   function trocar(novo, manter = true) {
     if (novo === fmt) return;
-    const t = manter ? vid.currentTime || estado.tempos[v.id] || 0 : 0;
-    const tocava = !vid.paused;
+    // Giro no meio de outro giro (o arquivo anterior nem abriu): valem o ponto e o "tocando" de antes da primeira troca,
+    // e o ouvinte antigo sai, para não pular para um ponto velho depois.
+    const t = pendente ? pendente.t : manter ? vid.currentTime || estado.tempos[v.id] || 0 : 0;
+    const tocava = pendente ? pendente.tocava : !vid.paused;
+    if (pendente) vid.removeEventListener('loadedmetadata', pendente.fn);
     fmt = novo;
     pl.dataset.formato = novo;
     const arq = v.arquivos[novo];
@@ -69,11 +75,14 @@ export function ligarPlayer(raiz, v) {
     vid.src = urlMidia(arq.video);
     vid.width = arq.largura;
     vid.height = arq.altura;
-    vid.addEventListener('loadedmetadata', () => {
-      vid.playbackRate = +estado.velocidade || 1;
+    const fn = () => {
+      pendente = null;
+      vid.defaultPlaybackRate = vid.playbackRate = +estado.velocidade || 1;
       if (t > 1 && t < (v.duracao || vid.duration) - 2) vid.currentTime = t;
       if (tocava) vid.play().catch(() => {});
-    }, { once: true });
+    };
+    pendente = { t, tocava, fn };
+    vid.addEventListener('loadedmetadata', fn, { once: true });
     vid.load();
     aviso();
   }
@@ -147,7 +156,7 @@ export function ligarPlayer(raiz, v) {
   pl.querySelector('.c-volta').addEventListener('click', () => { vid.currentTime = Math.max(0, vid.currentTime - 10); });
   const sel = pl.querySelector('.c-vel');
   sel.value = VELOCIDADES.includes(String(estado.velocidade)) ? String(estado.velocidade) : '1';
-  sel.addEventListener('change', e => { estado.velocidade = e.target.value; salvar(); vid.playbackRate = +e.target.value; });
+  sel.addEventListener('change', e => { estado.velocidade = e.target.value; salvar(); vid.defaultPlaybackRate = vid.playbackRate = +e.target.value; });
   pl.querySelector('.c-formato').addEventListener('click', () => {
     estado.formato = fmt === '16x9' ? '9x16' : '16x9';
     salvar();

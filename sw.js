@@ -1,6 +1,6 @@
 // Gerado por motor/montar-site.mjs. Não edite à mão: o nome do cache muda quando qualquer arquivo do site muda.
 // Rede primeiro, cache como reserva. Aulas, simuladores e capas entram no cache quando pedidos; vídeo .mp4 nunca.
-const CACHE = 'zero-ao-agente-3def77d6b836';
+const CACHE = 'zero-ao-agente-6a5834966cf6';
 const BASE = [
  "./",
  "index.html",
